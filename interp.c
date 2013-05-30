@@ -1,0 +1,232 @@
+#include <string.h>
+#include "interp.h"
+
+size_t interpret(instr_t *prog, data_t *d_stack, size_t *c_stack)
+{
+	size_t pc = 0;
+	data_t *d_top = d_stack - 1;
+	size_t *c_top = c_stack - 1;
+	data_t temp = 0;
+
+	/* if you change this, you must also change opcodes.h */
+	static const void *const dispatch[] = {
+		&&do_halt, &&do_call, &&do_ret, &&do_where, &&do_goto,
+		&&do_skipz, &&do_skipnz,
+		&&do_push8, &&do_push16, &&do_push32, &&do_push64,
+		&&do_pop, &&do_rot, &&do_swap, &&do_copy,
+		&&do_add, &&do_sub, &&do_mul, &&do_div, &&do_rem,
+		&&do_shl, &&do_shr, &&do_shra,
+		&&do_and, &&do_or, &&do_not, &&do_xor,
+		&&do_load8, &&do_load16, &&do_load32, &&do_load64,
+		&&do_store8, &&do_store16, &&do_store32, &&do_store64,
+		&&do_sex8, &&do_sex16, &&do_sex32,
+	};
+#if defined(FASTER)
+	#define CYCLE goto *dispatch[prog[pc++]]
+
+	CYCLE;
+#else /* SMALLER */
+	#define CYCLE goto cycle
+
+	cycle:
+		goto *dispatch[prog[pc++]];
+#endif
+	/* data stack operations */
+	#define ARG(N)    (*(d_top - (N)))
+	#define SHIFT()   (void) (++d_top)
+	#define UNSHIFT() (void) (--d_top)
+	#define PUSH(VAL) (void) (*(++d_top) = (VAL))
+	#define READ(N)   do { memcpy(++d_top, prog + pc, (N)); pc += (N); } while(0)
+
+	/* data stack <--> pc operations */
+	#define WHERE() (void) (*(++d_top) = pc)
+	#define GOTO()  (void) (pc = *(d_top--))
+
+	/* call stack operations */
+	#define SKIP(N)   (void) (pc += (N))
+	#define SAVE()    (void) (*(++c_top) = pc)
+	#define RESTORE() (void) (pc = (*(c_top--)))
+
+	do_halt:
+		goto finish;
+
+	do_call:
+		SAVE();
+		GOTO();
+		CYCLE;
+		
+	do_ret:
+		RESTORE();
+		CYCLE;
+
+	do_where:
+		WHERE();
+		CYCLE;
+
+	do_goto:
+		GOTO();
+		CYCLE;
+
+	do_skipz:
+		if(! ARG(0)) {
+			SKIP((signed) prog[pc]);
+		}
+		SKIP(1);
+		UNSHIFT();
+		CYCLE;
+
+	do_skipnz:
+		if(ARG(0)) {
+			SKIP((signed) prog[pc]);
+		}
+		SKIP(1);
+		UNSHIFT();
+		CYCLE;
+
+	do_push8:
+		READ(1);
+		CYCLE;
+
+	do_push16:
+		READ(2);
+		CYCLE;
+
+	do_push32:
+		READ(4);
+		CYCLE;
+
+	do_push64:
+		READ(8);
+		CYCLE;
+
+	do_pop:
+		UNSHIFT();
+		CYCLE;
+
+	do_rot:
+		temp = ARG(2);
+		ARG(2) = ARG(1);
+		ARG(1) = ARG(0);
+		ARG(0) = temp;
+		CYCLE;
+
+	do_swap:
+		temp = ARG(0);
+		ARG(0) = ARG(1);
+		ARG(1) = temp;
+		CYCLE;
+
+	do_copy:
+		ARG(0) = ARG(ARG(0));
+		CYCLE;
+
+	do_add:
+		ARG(1) = ARG(0) + ARG(1);
+		UNSHIFT();
+		CYCLE;
+
+	do_sub:
+		ARG(1) = ARG(0) - ARG(1);
+		UNSHIFT();
+		CYCLE;
+
+	do_mul:
+		ARG(1) = ARG(0) * ARG(1);
+		UNSHIFT();
+		CYCLE;
+
+	do_div:
+		ARG(1) = ARG(0) / ARG(1);
+		UNSHIFT();
+		CYCLE;
+
+	do_rem:
+		ARG(1) = ARG(0) % ARG(1);
+		UNSHIFT();
+		CYCLE;
+
+	do_shl:
+		ARG(1) = ARG(0) << ARG(1);
+		UNSHIFT();
+		CYCLE;
+
+	do_shr:
+		ARG(1) = ARG(0) >> ARG(1);
+		UNSHIFT();
+		CYCLE;
+
+	do_shra:
+		ARG(1) = (s_data_t) ARG(0) >> ARG(1);
+		UNSHIFT();
+		CYCLE;
+
+	do_and:
+		ARG(1) = ARG(0) & ARG(1);
+		UNSHIFT();
+		CYCLE;
+
+	do_or:
+		ARG(1) = ARG(0) | ARG(1);
+		UNSHIFT();
+		CYCLE;
+
+	do_not:
+		ARG(0) = ~ARG(0);
+		CYCLE;
+
+	do_xor:
+		ARG(1) = ARG(0) ^ ARG(1);
+		UNSHIFT();
+		CYCLE;
+
+	do_load8:
+		SHIFT();
+		ARG(0) = *(uint8_t *)ARG(1);
+		CYCLE;
+
+	do_load16:
+		SHIFT();
+		ARG(0) = *(uint16_t *)ARG(1);
+		CYCLE;
+
+	do_load32:
+		SHIFT();
+		ARG(0) = *(uint32_t *)ARG(1);
+		CYCLE;
+
+	do_load64:
+		SHIFT();
+		ARG(0) = *(uint64_t *)ARG(1);
+		CYCLE;
+	
+	do_store8:
+		*(uint8_t*)ARG(0) = ARG(1);
+		CYCLE;
+
+	do_store16:
+		*(uint16_t*)ARG(0) = ARG(1);
+		CYCLE;
+
+	do_store32:
+		*(uint32_t*)ARG(0) = ARG(1);
+		CYCLE;
+
+	do_store64:
+		*(uint64_t*)ARG(0) = ARG(1);
+		CYCLE;
+
+	do_sex8:
+		ARG(0) = ((s_data_t)ARG(0) << 56) >> 56;
+		CYCLE;
+
+	do_sex16:
+		ARG(0) = ((s_data_t)ARG(0) << 48) >> 48;
+		CYCLE;
+
+	do_sex32:
+		ARG(0) = ((s_data_t)ARG(0) << 32) >> 32;
+		CYCLE;
+
+	finish:
+		return d_top - d_stack + 1;
+}

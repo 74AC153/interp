@@ -1,0 +1,45 @@
+#ifndef OPCODES_H
+#define OPCODES_H
+
+typedef enum {
+	OP_HALT = 0,
+	OP_CALL,
+	OP_RET,
+	OP_WHERE,
+	OP_GOTO,
+	OP_SKIPZ,
+	OP_SKIPNZ,
+	OP_PUSH8,
+	OP_PUSH16,
+	OP_PUSH32,
+	OP_PUSH64,
+	OP_POP,
+	OP_ROT,
+	OP_SWAP,
+	OP_COPY,
+	OP_ADD,
+	OP_SUB,
+	OP_MUL,
+	OP_DIV,
+	OP_REM,
+	OP_SHL,
+	OP_SHR,
+	OP_SHRA,
+	OP_AND,
+	OP_OR,
+	OP_NOT,
+	OP_XOR,
+	OP_LOAD8,
+	OP_LOAD16,
+	OP_LOAD32,
+	OP_LOAD64,
+	OP_STORE8,
+	OP_STORE16,
+	OP_STORE32,
+	OP_STORE64,
+	OP_SEX8,
+	OP_SEX16,
+	OP_SEX32
+} opcode_t;
+
+#endif
