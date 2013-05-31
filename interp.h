@@ -9,6 +9,12 @@ typedef int64_t s_data_t;
 typedef size_t pc_t;
 typedef uint8_t instr_t;
 
-size_t interpret(uint8_t *prog, data_t *d_stack, size_t *c_stack);
+typedef void (*foreign_t)(data_t **d_top, uint8_t *g_data);
+
+size_t interpret(
+	instr_t *prog,
+	data_t *d_stack,
+	size_t *c_stack,
+	uint8_t *g_data);
 
 #endif

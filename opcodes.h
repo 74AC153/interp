@@ -17,6 +17,7 @@ typedef enum {
 	OP_ROT,
 	OP_SWAP,
 	OP_COPY,
+	OP_SAVE,
 	OP_ADD,
 	OP_SUB,
 	OP_MUL,
@@ -39,7 +40,8 @@ typedef enum {
 	OP_STORE64,
 	OP_SEX8,
 	OP_SEX16,
-	OP_SEX32
+	OP_SEX32,
+	OP_FOREIGN,
 } opcode_t;
 
 #endif

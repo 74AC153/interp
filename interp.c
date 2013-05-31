@@ -1,7 +1,7 @@
 #include <string.h>
 #include "interp.h"
 
-size_t interpret(instr_t *prog, data_t *d_stack, size_t *c_stack)
+size_t interpret(instr_t *prog, data_t *d_stack, size_t *c_stack, uint8_t *g_data)
 {
 	size_t pc = 0;
 	data_t *d_top = d_stack - 1;
@@ -13,13 +13,14 @@ size_t interpret(instr_t *prog, data_t *d_stack, size_t *c_stack)
 		&&do_halt, &&do_call, &&do_ret, &&do_where, &&do_goto,
 		&&do_skipz, &&do_skipnz,
 		&&do_push8, &&do_push16, &&do_push32, &&do_push64,
-		&&do_pop, &&do_rot, &&do_swap, &&do_copy,
+		&&do_pop, &&do_rot, &&do_swap, &&do_copy, &&do_save,
 		&&do_add, &&do_sub, &&do_mul, &&do_div, &&do_rem,
 		&&do_shl, &&do_shr, &&do_shra,
 		&&do_and, &&do_or, &&do_not, &&do_xor,
 		&&do_load8, &&do_load16, &&do_load32, &&do_load64,
 		&&do_store8, &&do_store16, &&do_store32, &&do_store64,
 		&&do_sex8, &&do_sex16, &&do_sex32,
+		&&do_foreign,
 	};
 #if defined(FASTER)
 	#define CYCLE goto *dispatch[prog[pc++]]
@@ -32,19 +33,19 @@ size_t interpret(instr_t *prog, data_t *d_stack, size_t *c_stack)
 		goto *dispatch[prog[pc++]];
 #endif
 	/* data stack operations */
-	#define ARG(N)    (*(d_top - (N)))
-	#define SHIFT()   (void) (++d_top)
-	#define UNSHIFT() (void) (--d_top)
+	#define ARG(N) (*(d_top - (N)))
+	#define SHIFT() (void) (++d_top)
+	#define UNSHIFT(N) (void) (d_top -= (N))
 	#define PUSH(VAL) (void) (*(++d_top) = (VAL))
-	#define READ(N)   do { memcpy(++d_top, prog + pc, (N)); pc += (N); } while(0)
+	#define READ(N) do { memcpy(++d_top, prog + pc, (N)); pc += (N); } while(0)
 
 	/* data stack <--> pc operations */
 	#define WHERE() (void) (*(++d_top) = pc)
-	#define GOTO()  (void) (pc = *(d_top--))
+	#define GOTO() (void) (pc = *(d_top--))
 
 	/* call stack operations */
-	#define SKIP(N)   (void) (pc += (N))
-	#define SAVE()    (void) (*(++c_top) = pc)
+	#define SKIP(N) (void) (pc += (N))
+	#define SAVE() (void) (*(++c_top) = pc)
 	#define RESTORE() (void) (pc = (*(c_top--)))
 
 	do_halt:
@@ -72,7 +73,7 @@ size_t interpret(instr_t *prog, data_t *d_stack, size_t *c_stack)
 			SKIP((signed) prog[pc]);
 		}
 		SKIP(1);
-		UNSHIFT();
+		UNSHIFT(1);
 		CYCLE;
 
 	do_skipnz:
@@ -80,7 +81,7 @@ size_t interpret(instr_t *prog, data_t *d_stack, size_t *c_stack)
 			SKIP((signed) prog[pc]);
 		}
 		SKIP(1);
-		UNSHIFT();
+		UNSHIFT(1);
 		CYCLE;
 
 	do_push8:
@@ -100,7 +101,7 @@ size_t interpret(instr_t *prog, data_t *d_stack, size_t *c_stack)
 		CYCLE;
 
 	do_pop:
-		UNSHIFT();
+		UNSHIFT(1);
 		CYCLE;
 
 	do_rot:
@@ -120,54 +121,58 @@ size_t interpret(instr_t *prog, data_t *d_stack, size_t *c_stack)
 		ARG(0) = ARG(ARG(0));
 		CYCLE;
 
+	do_save:
+		ARG(ARG(0)) = ARG(1);
+		CYCLE;
+
 	do_add:
 		ARG(1) = ARG(0) + ARG(1);
-		UNSHIFT();
+		UNSHIFT(1);
 		CYCLE;
 
 	do_sub:
 		ARG(1) = ARG(0) - ARG(1);
-		UNSHIFT();
+		UNSHIFT(1);
 		CYCLE;
 
 	do_mul:
 		ARG(1) = ARG(0) * ARG(1);
-		UNSHIFT();
+		UNSHIFT(1);
 		CYCLE;
 
 	do_div:
 		ARG(1) = ARG(0) / ARG(1);
-		UNSHIFT();
+		UNSHIFT(1);
 		CYCLE;
 
 	do_rem:
 		ARG(1) = ARG(0) % ARG(1);
-		UNSHIFT();
+		UNSHIFT(1);
 		CYCLE;
 
 	do_shl:
 		ARG(1) = ARG(0) << ARG(1);
-		UNSHIFT();
+		UNSHIFT(1);
 		CYCLE;
 
 	do_shr:
 		ARG(1) = ARG(0) >> ARG(1);
-		UNSHIFT();
+		UNSHIFT(1);
 		CYCLE;
 
 	do_shra:
 		ARG(1) = (s_data_t) ARG(0) >> ARG(1);
-		UNSHIFT();
+		UNSHIFT(1);
 		CYCLE;
 
 	do_and:
 		ARG(1) = ARG(0) & ARG(1);
-		UNSHIFT();
+		UNSHIFT(1);
 		CYCLE;
 
 	do_or:
 		ARG(1) = ARG(0) | ARG(1);
-		UNSHIFT();
+		UNSHIFT(1);
 		CYCLE;
 
 	do_not:
@@ -176,43 +181,43 @@ size_t interpret(instr_t *prog, data_t *d_stack, size_t *c_stack)
 
 	do_xor:
 		ARG(1) = ARG(0) ^ ARG(1);
-		UNSHIFT();
+		UNSHIFT(1);
 		CYCLE;
 
 	do_load8:
 		SHIFT();
-		ARG(0) = *(uint8_t *)ARG(1);
+		ARG(0) = *(uint8_t *)(g_data + ARG(1));
 		CYCLE;
 
 	do_load16:
 		SHIFT();
-		ARG(0) = *(uint16_t *)ARG(1);
+		ARG(0) = *(uint16_t *)(g_data + ARG(1));
 		CYCLE;
 
 	do_load32:
 		SHIFT();
-		ARG(0) = *(uint32_t *)ARG(1);
+		ARG(0) = *(uint32_t *)(g_data + ARG(1));
 		CYCLE;
 
 	do_load64:
 		SHIFT();
-		ARG(0) = *(uint64_t *)ARG(1);
+		ARG(0) = *(uint64_t *)(g_data + ARG(1));
 		CYCLE;
 	
 	do_store8:
-		*(uint8_t*)ARG(0) = ARG(1);
+		*(uint8_t*)(g_data + ARG(0)) = ARG(1);
 		CYCLE;
 
 	do_store16:
-		*(uint16_t*)ARG(0) = ARG(1);
+		*(uint16_t*)(g_data + ARG(0)) = ARG(1);
 		CYCLE;
 
 	do_store32:
-		*(uint32_t*)ARG(0) = ARG(1);
+		*(uint32_t*)(g_data + ARG(0)) = ARG(1);
 		CYCLE;
 
 	do_store64:
-		*(uint64_t*)ARG(0) = ARG(1);
+		*(uint64_t*)(g_data + ARG(0)) = ARG(1);
 		CYCLE;
 
 	do_sex8:
@@ -225,6 +230,15 @@ size_t interpret(instr_t *prog, data_t *d_stack, size_t *c_stack)
 
 	do_sex32:
 		ARG(0) = ((s_data_t)ARG(0) << 32) >> 32;
+		CYCLE;
+
+	do_foreign:
+		READ(4); /* span */
+		READ(1); /* align */
+		temp = (data_t) (prog + pc + ARG(0));	
+		SKIP(ARG(1));
+		UNSHIFT(2);
+		(*(foreign_t)temp)(&d_top, g_data);
 		CYCLE;
 
 	finish:

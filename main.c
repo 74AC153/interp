@@ -18,11 +18,11 @@ int main(int argc, char *argv[])
 {
 	size_t i, j;
 
-	j = interpret(program, data_stack, call_stack);
+	j = interpret(program, data_stack, call_stack, NULL);
 
 	printf("data stack:\n");
 	for(i = 0; i < j; i++) {
-		printf("%u: 0x%llx %llu %lld\n",
+		printf("%lu: 0x%llx %llu %lld\n",
 	           i,
 		       (unsigned long long) data_stack[i],
 		       (unsigned long long) data_stack[i],
