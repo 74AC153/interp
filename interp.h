@@ -11,10 +11,17 @@ typedef uint8_t instr_t;
 
 typedef void (*foreign_t)(data_t **d_top, uint8_t *g_data);
 
-size_t interpret(
+typedef struct {
+	size_t pc;
+	data_t *d_top;
+	size_t *c_top;
+} interp_state_t;
+
+bool interpret(
 	instr_t *prog,
 	data_t *d_stack,
 	size_t *c_stack,
-	uint8_t *g_data);
+	uint8_t *g_data,
+	interp_state_t *state);
 
 #endif

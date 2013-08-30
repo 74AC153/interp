@@ -1,8 +1,14 @@
 #include <string.h>
 #include "interp.h"
 
-size_t interpret(instr_t *prog, data_t *d_stack, size_t *c_stack, uint8_t *g_data)
+bool interpret(
+	instr_t *prog,
+	data_t *d_stack,
+	size_t *c_stack,
+	uint8_t *g_data,
+	interp_state_t *state)
 {
+	bool status = true;
 	size_t pc = 0;
 	data_t *d_top = d_stack - 1;
 	size_t *c_top = c_stack - 1;
@@ -10,8 +16,9 @@ size_t interpret(instr_t *prog, data_t *d_stack, size_t *c_stack, uint8_t *g_dat
 
 	/* if you change this, you must also change opcodes.h */
 	static const void *const dispatch[] = {
-		&&do_halt, &&do_call, &&do_ret, &&do_where, &&do_goto,
-		&&do_skipz, &&do_skipnz,
+		&&do_halt,
+		&&do_calli, &&do_call, &&do_ret, &&do_where, &&do_gotoi, &&do_goto,
+		&&do_skipz, &&do_skipnz, &&do_skip,
 		&&do_push8, &&do_push16, &&do_push32, &&do_push64,
 		&&do_pop, &&do_rot, &&do_swap, &&do_copy, &&do_save,
 		&&do_add, &&do_sub, &&do_mul, &&do_div, &&do_rem,
@@ -48,12 +55,19 @@ size_t interpret(instr_t *prog, data_t *d_stack, size_t *c_stack, uint8_t *g_dat
 	#define SAVE() (void) (*(++c_top) = pc)
 	#define RESTORE() (void) (pc = (*(c_top--)))
 
+	do_err:
+		status = false;
+
 	do_halt:
 		goto finish;
 
-	do_call:
+	do_calli:
 		SAVE();
 		GOTO();
+		CYCLE;
+
+	do_call:
+		/* TODO */
 		CYCLE;
 		
 	do_ret:
@@ -64,8 +78,12 @@ size_t interpret(instr_t *prog, data_t *d_stack, size_t *c_stack, uint8_t *g_dat
 		WHERE();
 		CYCLE;
 
-	do_goto:
+	do_gotoi:
 		GOTO();
+		CYCLE;
+
+	do_goto:
+		/* TODO */
 		CYCLE;
 
 	do_skipz:
@@ -82,6 +100,11 @@ size_t interpret(instr_t *prog, data_t *d_stack, size_t *c_stack, uint8_t *g_dat
 		}
 		SKIP(1);
 		UNSHIFT(1);
+		CYCLE;
+
+	do_skip:
+		SKIP((signed) prog[pc]);
+		SKIP(1);
 		CYCLE;
 
 	do_push8:
@@ -242,5 +265,8 @@ size_t interpret(instr_t *prog, data_t *d_stack, size_t *c_stack, uint8_t *g_dat
 		CYCLE;
 
 	finish:
-		return d_top - d_stack + 1;
+		state.pc = pc;
+		stat.d_top = d_top;
+		stat.c_top = c_top;
+		return status;
 }
