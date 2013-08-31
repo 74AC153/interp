@@ -41,18 +41,24 @@ bool interpret(
 #endif
 	/* data stack operations */
 	#define ARG(N) (*(d_top - (N)))
-	#define SHIFT() (void) (++d_top)
-	#define UNSHIFT(N) (void) (d_top -= (N))
-	#define PUSH(VAL) (void) (*(++d_top) = (VAL))
-	/* FIXME: alignment issues here */
-	#define READ(N) do { memcpy(++d_top, prog + pc, (N)); pc += (N); } while(0)
+	#define SHIFT() do { ++d_top; } while(0)
+	#define UNSHIFT(N) do { d_top -= (N); } while(0)
+	#define PUSH(VAL) do { *(++d_top) = (VAL); } while(0)
+	#define READ1() do { *(++d_top) = *(uint8_t *)(prog + pc); } while(0)
+	#define READ2() do { *(++d_top) = *(uint16_t *)(prog + pc); } while(0)
+	#define READ4() do { *(++d_top) = *(uint32_t *)(prog + pc); } while(0)
+	#define READ8() do { *(++d_top) = *(uint64_t *)(prog + pc); } while(0)
+	#define READPC() do { *(++d_top) = *(pc_t *)(prog + pc); } while(0)
+	#define READPTR() do { *(++d_top) = *(uintptr_t *)(prog + pc); } while(0)
 
 	/* data stack <--> pc operations */
 	#define WHERE() (void) (*(++d_top) = pc)
 	#define GOTO() (void) (pc = *(d_top--))
 
-	/* call stack operations */
+	/* pc operations */
 	#define SKIP(N) (void) (pc += (N))
+
+	/* call stack operations */
 	#define SAVE() (void) (*(++c_top) = pc)
 	#define RESTORE() (void) (pc = (*(c_top--)))
 
@@ -63,7 +69,7 @@ bool interpret(
 		goto finish;
 
 	do_call:
-		READ(sizeof(pc_t));
+		READPC();
 		/* goto do_callind; */
 		
 	do_callind:
@@ -80,7 +86,7 @@ bool interpret(
 		CYCLE;
 
 	do_goto:
-		READ(sizeof(pc_t));
+		READPC();
 		/* goto do_gotoind; */
 
 	do_gotoind:
@@ -109,19 +115,19 @@ bool interpret(
 		CYCLE;
 
 	do_push8:
-		READ(1);
+		READ1();
 		CYCLE;
 
 	do_push16:
-		READ(2);
+		READ2();
 		CYCLE;
 
 	do_push32:
-		READ(4);
+		READ4();
 		CYCLE;
 
 	do_push64:
-		READ(8);
+		READ8();
 		CYCLE;
 
 	do_pop:
@@ -257,7 +263,7 @@ bool interpret(
 		CYCLE;
 
 	do_foreign:
-		READ(sizeof(foreign_t));
+		READPTR();
 		/* goto do_foreignind; */
 
 	do_foreignind:
