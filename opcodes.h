@@ -2,13 +2,14 @@
 #define OPCODES_H
 
 typedef enum {
-	OP_HALT = 0,
-	OP_CALLI,
+	OP_ERR = 0,
+	OP_HALT,
 	OP_CALL,
+	OP_CALLIND,
 	OP_RET,
 	OP_WHERE,
-	OP_GOTOI,
 	OP_GOTO,
+	OP_GOTOIND,
 	OP_SKIPZ,
 	OP_SKIPNZ,
 	OP_SKIP,
@@ -45,6 +46,7 @@ typedef enum {
 	OP_SEX16,
 	OP_SEX32,
 	OP_FOREIGN,
+	OP_FOREIGNIND,
 } opcode_t;
 
 #endif

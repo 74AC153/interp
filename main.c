@@ -17,8 +17,9 @@ extern instr_t program[];
 int main(int argc, char *argv[])
 {
 	size_t i, j;
+	interp_state_t interp_state;
 
-	j = interpret(program, data_stack, call_stack, NULL);
+	j = interpret(program, data_stack, call_stack, NULL, &interp_state);
 
 	printf("data stack:\n");
 	for(i = 0; i < j; i++) {

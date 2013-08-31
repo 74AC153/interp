@@ -4,20 +4,20 @@
 bool interpret(
 	instr_t *prog,
 	data_t *d_stack,
-	size_t *c_stack,
-	uint8_t *g_data,
+	pc_t *c_stack,
+	void *g_data,
 	interp_state_t *state)
 {
 	bool status = true;
-	size_t pc = 0;
+	pc_t pc = 0;
 	data_t *d_top = d_stack - 1;
-	size_t *c_top = c_stack - 1;
+	pc_t *c_top = c_stack - 1;
 	data_t temp = 0;
 
 	/* if you change this, you must also change opcodes.h */
 	static const void *const dispatch[] = {
-		&&do_halt,
-		&&do_calli, &&do_call, &&do_ret, &&do_where, &&do_gotoi, &&do_goto,
+		&&do_err, &&do_halt,
+		&&do_call, &&do_callind, &&do_ret, &&do_where, &&do_goto, &&do_gotoind,
 		&&do_skipz, &&do_skipnz, &&do_skip,
 		&&do_push8, &&do_push16, &&do_push32, &&do_push64,
 		&&do_pop, &&do_rot, &&do_swap, &&do_copy, &&do_save,
@@ -27,7 +27,7 @@ bool interpret(
 		&&do_load8, &&do_load16, &&do_load32, &&do_load64,
 		&&do_store8, &&do_store16, &&do_store32, &&do_store64,
 		&&do_sex8, &&do_sex16, &&do_sex32,
-		&&do_foreign,
+		&&do_foreign, &&do_foreignind,
 	};
 #if defined(FASTER)
 	#define CYCLE goto *dispatch[prog[pc++]]
@@ -44,6 +44,7 @@ bool interpret(
 	#define SHIFT() (void) (++d_top)
 	#define UNSHIFT(N) (void) (d_top -= (N))
 	#define PUSH(VAL) (void) (*(++d_top) = (VAL))
+	/* FIXME: alignment issues here */
 	#define READ(N) do { memcpy(++d_top, prog + pc, (N)); pc += (N); } while(0)
 
 	/* data stack <--> pc operations */
@@ -61,15 +62,15 @@ bool interpret(
 	do_halt:
 		goto finish;
 
-	do_calli:
+	do_call:
+		READ(sizeof(pc_t));
+		/* goto do_callind; */
+		
+	do_callind:
 		SAVE();
 		GOTO();
 		CYCLE;
 
-	do_call:
-		READ(sizeof(pc_t));
-		goto do_calli;
-		
 	do_ret:
 		RESTORE();
 		CYCLE;
@@ -78,13 +79,13 @@ bool interpret(
 		WHERE();
 		CYCLE;
 
-	do_gotoi:
-		GOTO();
-		CYCLE;
-
 	do_goto:
 		READ(sizeof(pc_t));
-		goto do_gotoi;
+		/* goto do_gotoind; */
+
+	do_gotoind:
+		GOTO();
+		CYCLE;
 
 	do_skipz:
 		if(! ARG(0)) {
@@ -256,17 +257,18 @@ bool interpret(
 		CYCLE;
 
 	do_foreign:
-		READ(4); /* span */
-		READ(1); /* align */
-		temp = (data_t) (prog + pc + ARG(0));	
-		SKIP(ARG(1));
-		UNSHIFT(2);
+		READ(sizeof(foreign_t));
+		/* goto do_foreignind; */
+
+	do_foreignind:
+		temp = ARG(0);	
+		UNSHIFT(1);
 		(*(foreign_t)temp)(&d_top, g_data);
 		CYCLE;
 
-	finish:
-		state.pc = pc;
-		stat.d_top = d_top;
-		stat.c_top = c_top;
-		return status;
+finish:
+	state->pc = pc;
+	state->d_top = d_top;
+	state->c_top = c_top;
+	return status;
 }
