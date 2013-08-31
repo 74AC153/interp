@@ -17,8 +17,9 @@ bool interpret(
 	/* if you change this, you must also change opcodes.h */
 	static const void *const dispatch[] = {
 		&&do_err, &&do_halt,
-		&&do_call, &&do_callind, &&do_ret, &&do_where, &&do_goto, &&do_gotoind,
-		&&do_skipz, &&do_skipnz, &&do_skip,
+		&&do_call, &&do_callind, &&do_ret, &&do_where,
+		&&do_goto, &&do_gotoind, &&do_goto_rel,
+		&&do_branch_z, &&do_branch_nz, &&do_branch_h, &&do_branch_nh,
 		&&do_push8, &&do_push16, &&do_push32, &&do_push64,
 		&&do_pop, &&do_rot, &&do_swap, &&do_copy, &&do_save,
 		&&do_add, &&do_sub, &&do_mul, &&do_div, &&do_rem,
@@ -87,31 +88,43 @@ bool interpret(
 
 	do_goto:
 		READPC();
-		/* goto do_gotoind; */
-
 	do_gotoind:
 		GOTO();
 		CYCLE;
 
-	do_skipz:
+	do_goto_rel:
+		READPC();
+		temp = ARG(0);
+		UNSHIFT(1);
+		SKIP((s_data_t) temp);
+		CYCLE;
+
+	do_branch_z:
 		if(! ARG(0)) {
-			SKIP((signed) prog[pc]);
+			goto do_goto_rel;
 		}
-		SKIP(1);
-		UNSHIFT(1);
+		SKIP(sizeof(pc_t));
 		CYCLE;
-
-	do_skipnz:
+		
+	do_branch_nz:
 		if(ARG(0)) {
-			SKIP((signed) prog[pc]);
+			goto do_goto_rel;
 		}
-		SKIP(1);
-		UNSHIFT(1);
+		SKIP(sizeof(pc_t));
 		CYCLE;
 
-	do_skip:
-		SKIP((signed) prog[pc]);
-		SKIP(1);
+	do_branch_h:
+		if((s_data_t) ARG(0) < 0) {
+			goto do_goto_rel;
+		}
+		SKIP(sizeof(pc_t));
+		CYCLE;
+
+	do_branch_nh:
+		if((s_data_t) ARG(0) >= 0) {
+			goto do_goto_rel;
+		}
+		SKIP(sizeof(pc_t));
 		CYCLE;
 
 	do_push8:
