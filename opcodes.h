@@ -3,12 +3,15 @@
 
 typedef enum {
 	OP_HALT = 0,
+	OP_CALLI,
 	OP_CALL,
 	OP_RET,
 	OP_WHERE,
+	OP_GOTOI,
 	OP_GOTO,
 	OP_SKIPZ,
 	OP_SKIPNZ,
+	OP_SKIP,
 	OP_PUSH8,
 	OP_PUSH16,
 	OP_PUSH32,

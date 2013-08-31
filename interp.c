@@ -67,8 +67,8 @@ bool interpret(
 		CYCLE;
 
 	do_call:
-		/* TODO */
-		CYCLE;
+		READ(sizeof(pc_t));
+		goto do_calli;
 		
 	do_ret:
 		RESTORE();
@@ -83,8 +83,8 @@ bool interpret(
 		CYCLE;
 
 	do_goto:
-		/* TODO */
-		CYCLE;
+		READ(sizeof(pc_t));
+		goto do_gotoi;
 
 	do_skipz:
 		if(! ARG(0)) {
