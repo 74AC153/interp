@@ -17,17 +17,19 @@ extern instr_t program[];
 int main(int argc, char *argv[])
 {
 	size_t i, j;
+	bool status;
 	interp_state_t interp_state;
+	data_t *ds_ptr;
 
-	j = interpret(program, data_stack, call_stack, NULL, &interp_state);
+	status = interpret(program, 0, data_stack, call_stack, NULL, &interp_state);
 
 	printf("data stack:\n");
-	for(i = 0; i < j; i++) {
+	for(ds_ptr = interp_state.ds_top; ds_ptr >= data_stack; ds_ptr--) {
 		printf("%lu: 0x%llx %llu %lld\n",
 	           i,
-		       (unsigned long long) data_stack[i],
-		       (unsigned long long) data_stack[i],
-		       (signed long long) data_stack[i]);
+		       (unsigned long long) *ds_ptr,
+		       (unsigned long long) *ds_ptr,
+		       (signed long long) *ds_ptr);
 	}
 
 	return 0;

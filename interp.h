@@ -20,6 +20,7 @@ typedef struct {
 
 bool interpret(
 	instr_t *prog,
+	pc_t start,
 	data_t *d_stack,
 	pc_t *c_stack,
 	void *g_data,

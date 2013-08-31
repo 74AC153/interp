@@ -1,15 +1,15 @@
-#include <string.h>
 #include "interp.h"
 
 bool interpret(
 	instr_t *prog,
+	pc_t start,
 	data_t *d_stack,
 	pc_t *c_stack,
 	void *g_data,
 	interp_state_t *state)
 {
 	bool status = true;
-	pc_t pc = 0;
+	pc_t pc = start;
 	data_t *d_top = d_stack - 1;
 	pc_t *c_top = c_stack - 1;
 	data_t temp = 0;
