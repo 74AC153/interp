@@ -1,26 +1,48 @@
+#include <endian.h>
+
 #include "interp.h"
 
-bool interpret(
+data_t read_be(unsigned char *loc, unsigned sz)
+{
+	data_t out = *loc++;
+	while(--sz)
+		out = (out << 8) | *loc++;
+	return out;
+}
+
+void write_be(unsigned char *loc, unsigned sz, data_t val)
+{
+	while(sz--) {
+		loc[sz] = val;
+		val >>= 8;
+	}
+}
+
+int interpret(
 	instr_t *prog,
-	pc_t start,
-	data_t *d_stack,
-	pc_t *c_stack,
-	void *g_data,
+	foreign_t *funcs,
 	interp_state_t *state)
 {
-	bool status = true;
-	pc_t pc = start;
-	data_t *d_top = d_stack - 1;
-	pc_t *c_top = c_stack - 1;
-	data_t temp = 0;
+	int status = 0;
+
+	pc_t pc = state->pc;
+	data_t *d_top = state->d_top;
+	pc_t *c_top = state->c_top;
+
+	data_t data;
+	jump_t jump;
+	
 
 	/* if you change this, you must also change opcodes.h */
 	static const void *const dispatch[] = {
-		&&do_err, &&do_halt,
-		&&do_call, &&do_callind, &&do_ret, &&do_where,
-		&&do_goto, &&do_gotoind, &&do_goto_rel,
+		&&do_noop, &&do_dbg, &&do_halt,
+		&&do_ret,
+		&&do_call_ind, &&do_call, &&do_call_rel,
+		&&do_goto_ind, &&do_goto, &&do_goto_rel,
 		&&do_branch_z, &&do_branch_nz, &&do_branch_h, &&do_branch_nh,
+		&&do_where,
 		&&do_push8, &&do_push16, &&do_push32, &&do_push64,
+		&&do_foreign,
 		&&do_pop, &&do_rot, &&do_swap, &&do_copy, &&do_save,
 		&&do_add, &&do_sub, &&do_mul, &&do_div, &&do_rem,
 		&&do_shl, &&do_shr, &&do_shra,
@@ -28,7 +50,6 @@ bool interpret(
 		&&do_load8, &&do_load16, &&do_load32, &&do_load64,
 		&&do_store8, &&do_store16, &&do_store32, &&do_store64,
 		&&do_sex8, &&do_sex16, &&do_sex32,
-		&&do_foreign, &&do_foreignind,
 	};
 #if defined(FASTER)
 	#define CYCLE goto *dispatch[prog[pc++]]
@@ -40,249 +61,241 @@ bool interpret(
 	cycle:
 		goto *dispatch[prog[pc++]];
 #endif
-	/* data stack operations */
-	#define ARG(N) (*(d_top - (N)))
-	#define SHIFT() do { ++d_top; } while(0)
-	#define UNSHIFT(N) do { d_top -= (N); } while(0)
-	#define PUSH(VAL) do { *(++d_top) = (VAL); } while(0)
-	#define READ1() do { *(++d_top) = *(uint8_t *)(prog + pc); } while(0)
-	#define READ2() do { *(++d_top) = *(uint16_t *)(prog + pc); } while(0)
-	#define READ4() do { *(++d_top) = *(uint32_t *)(prog + pc); } while(0)
-	#define READ8() do { *(++d_top) = *(uint64_t *)(prog + pc); } while(0)
-	#define READPC() do { *(++d_top) = *(pc_t *)(prog + pc); } while(0)
-	#define READPTR() do { *(++d_top) = *(uintptr_t *)(prog + pc); } while(0)
 
-	/* data stack <--> pc operations */
-	#define WHERE() (void) (*(++d_top) = pc)
-	#define GOTO() (void) (pc = *(d_top--))
+	do_noop:
+		CYCLE;
 
-	/* pc operations */
-	#define SKIP(N) (void) (pc += (N))
-
-	/* call stack operations */
-	#define SAVE() (void) (*(++c_top) = pc)
-	#define RESTORE() (void) (pc = (*(c_top--)))
-
-	do_err:
-		status = false;
+	do_dbg:
+		status = -1;
 
 	do_halt:
 		goto finish;
+		
+	do_ret:
+		pc = *c_top--; // pc <- pop c_top
+		CYCLE;
+
+	do_call_ind:
+		*(++c_top) = pc; // push pc -> c_top
+		pc = *(d_top--); // pc <- pop d_top
+		CYCLE;
 
 	do_call:
-		READPC();
-		/* goto do_callind; */
-		
-	do_callind:
-		SAVE();
-		GOTO();
+		*(++c_top) = pc + 4; // push pc -> c_top
+		jump = read_be(prog + pc, 4);
+		pc = jump; // pc <- pop d_top
 		CYCLE;
 
-	do_ret:
-		RESTORE();
+	do_call_rel:
+		*(++c_top) = pc + 4; // push pc -> c_top
+		jump = read_be(prog + pc, 4);
+		pc += jump; // pc <- pop d_top
 		CYCLE;
 
-	do_where:
-		WHERE();
+	do_goto_ind:
+		pc = *(d_top--); // pc = pop d_top
 		CYCLE;
 
 	do_goto:
-		READPC();
-	do_gotoind:
-		GOTO();
+		jump = read_be(prog + pc, 4);
+		pc = jump;
 		CYCLE;
 
 	do_goto_rel:
-		READPC();
-		temp = ARG(0);
-		UNSHIFT(1);
-		SKIP((s_data_t) temp);
+		jump = read_be(prog + pc, 4);
+		pc += jump;
 		CYCLE;
 
 	do_branch_z:
-		if(! ARG(0)) {
+		if(! *d_top) {
 			goto do_goto_rel;
 		}
-		SKIP(sizeof(pc_t));
+		pc += sizeof(jump_t); // jump over immediate
 		CYCLE;
 		
 	do_branch_nz:
-		if(ARG(0)) {
+		if(*d_top) {
 			goto do_goto_rel;
 		}
-		SKIP(sizeof(pc_t));
+		pc += sizeof(jump_t);
 		CYCLE;
 
 	do_branch_h:
-		if((s_data_t) ARG(0) < 0) {
+		if((s_data_t) *d_top < 0) {
 			goto do_goto_rel;
 		}
-		SKIP(sizeof(pc_t));
+		pc += sizeof(jump_t);
 		CYCLE;
 
 	do_branch_nh:
-		if((s_data_t) ARG(0) >= 0) {
+		if((s_data_t) *d_top >= 0) {
 			goto do_goto_rel;
 		}
-		SKIP(sizeof(pc_t));
+		pc += sizeof(jump_t);
+		CYCLE;
+
+	do_where:
+		*(++d_top) = pc; // push pc -> d_top
 		CYCLE;
 
 	do_push8:
-		READ1();
+		*(++d_top) = read_be(prog + pc, 1);
+		pc += 1;
 		CYCLE;
 
 	do_push16:
-		READ2();
+		*(++d_top) = read_be(prog + pc, 2);
+		pc += 2;
 		CYCLE;
 
 	do_push32:
-		READ4();
+		*(++d_top) = read_be(prog + pc, 4);
+		pc += 4;
 		CYCLE;
 
 	do_push64:
-		READ8();
-		CYCLE;
-
-	do_pop:
-		UNSHIFT(1);
-		CYCLE;
-
-	do_rot:
-		temp = ARG(2);
-		ARG(2) = ARG(1);
-		ARG(1) = ARG(0);
-		ARG(0) = temp;
-		CYCLE;
-
-	do_swap:
-		temp = ARG(0);
-		ARG(0) = ARG(1);
-		ARG(1) = temp;
-		CYCLE;
-
-	do_copy:
-		ARG(0) = ARG(ARG(0));
-		CYCLE;
-
-	do_save:
-		ARG(ARG(0)) = ARG(1);
-		CYCLE;
-
-	do_add:
-		ARG(1) = ARG(0) + ARG(1);
-		UNSHIFT(1);
-		CYCLE;
-
-	do_sub:
-		ARG(1) = ARG(0) - ARG(1);
-		UNSHIFT(1);
-		CYCLE;
-
-	do_mul:
-		ARG(1) = ARG(0) * ARG(1);
-		UNSHIFT(1);
-		CYCLE;
-
-	do_div:
-		ARG(1) = ARG(0) / ARG(1);
-		UNSHIFT(1);
-		CYCLE;
-
-	do_rem:
-		ARG(1) = ARG(0) % ARG(1);
-		UNSHIFT(1);
-		CYCLE;
-
-	do_shl:
-		ARG(1) = ARG(0) << ARG(1);
-		UNSHIFT(1);
-		CYCLE;
-
-	do_shr:
-		ARG(1) = ARG(0) >> ARG(1);
-		UNSHIFT(1);
-		CYCLE;
-
-	do_shra:
-		ARG(1) = (s_data_t) ARG(0) >> ARG(1);
-		UNSHIFT(1);
-		CYCLE;
-
-	do_and:
-		ARG(1) = ARG(0) & ARG(1);
-		UNSHIFT(1);
-		CYCLE;
-
-	do_or:
-		ARG(1) = ARG(0) | ARG(1);
-		UNSHIFT(1);
-		CYCLE;
-
-	do_not:
-		ARG(0) = ~ARG(0);
-		CYCLE;
-
-	do_xor:
-		ARG(1) = ARG(0) ^ ARG(1);
-		UNSHIFT(1);
-		CYCLE;
-
-	do_load8:
-		SHIFT();
-		ARG(0) = *(uint8_t *)(g_data + ARG(1));
-		CYCLE;
-
-	do_load16:
-		SHIFT();
-		ARG(0) = *(uint16_t *)(g_data + ARG(1));
-		CYCLE;
-
-	do_load32:
-		SHIFT();
-		ARG(0) = *(uint32_t *)(g_data + ARG(1));
-		CYCLE;
-
-	do_load64:
-		SHIFT();
-		ARG(0) = *(uint64_t *)(g_data + ARG(1));
-		CYCLE;
-	
-	do_store8:
-		*(uint8_t*)(g_data + ARG(0)) = ARG(1);
-		CYCLE;
-
-	do_store16:
-		*(uint16_t*)(g_data + ARG(0)) = ARG(1);
-		CYCLE;
-
-	do_store32:
-		*(uint32_t*)(g_data + ARG(0)) = ARG(1);
-		CYCLE;
-
-	do_store64:
-		*(uint64_t*)(g_data + ARG(0)) = ARG(1);
-		CYCLE;
-
-	do_sex8:
-		ARG(0) = ((s_data_t)ARG(0) << 56) >> 56;
-		CYCLE;
-
-	do_sex16:
-		ARG(0) = ((s_data_t)ARG(0) << 48) >> 48;
-		CYCLE;
-
-	do_sex32:
-		ARG(0) = ((s_data_t)ARG(0) << 32) >> 32;
+		*(++d_top) = read_be(prog + pc, 8);
+		pc += 8;
 		CYCLE;
 
 	do_foreign:
-		READPTR();
-		/* goto do_foreignind; */
+		data = read_be(prog + pc, 4);
+		funcs[data](&d_top);
+		pc += 4;
+		CYCLE;
 
-	do_foreignind:
-		temp = ARG(0);	
-		UNSHIFT(1);
-		(*(foreign_t)temp)(&d_top, g_data);
+	do_pop:
+		d_top--;
+		CYCLE;
+
+	do_rot:
+		data = d_top[-2];
+		d_top[-2] = d_top[-1];
+		d_top[-1] = d_top[0];
+		d_top[0] = data;
+		CYCLE;
+
+	do_swap:
+		data = d_top[0];
+		d_top[0] = d_top[-1];
+		d_top[-1] = data;
+		CYCLE;
+
+	do_copy:
+		data = *d_top;
+		*d_top = d_top[-(s_data_t)data];
+		CYCLE;
+
+	do_save:
+		data = *d_top;
+		d_top[-(s_data_t)data] = d_top[-1];
+		CYCLE;
+
+	do_add:
+		d_top[-1] += d_top[0];
+		d_top--;
+		CYCLE;
+
+	do_sub:
+		d_top[-1] -= d_top[0];
+		d_top--;
+		CYCLE;
+
+	do_mul:
+		d_top[-1] *= d_top[0];
+		d_top--;
+		CYCLE;
+
+	do_div:
+		d_top[-1] /= d_top[0];
+		d_top--;
+		CYCLE;
+
+	do_rem:
+		d_top[-1] %= d_top[0];
+		d_top--;
+		CYCLE;
+
+	do_shl:
+		d_top[-1] <<= d_top[0];
+		d_top--;
+		CYCLE;
+
+	do_shr:
+		d_top[-1] >>= d_top[0];
+		d_top--;
+		CYCLE;
+
+	do_shra:
+		d_top[-1] = ((s_data_t*)d_top)[-1] >> d_top[0];
+		d_top--;
+		CYCLE;
+
+	do_and:
+		d_top[-1] &= d_top[0];
+		d_top--;
+		CYCLE;
+
+	do_or:
+		d_top[-1] |= d_top[0];
+		d_top--;
+		CYCLE;
+
+	do_not:
+		d_top[0] = ~d_top[0];
+		CYCLE;
+
+	do_xor:
+		d_top[-1] ^= d_top[0];
+		d_top--;
+		CYCLE;
+
+	do_load8:
+		d_top[0] = read_be((unsigned char *)d_top[0], 1);
+		CYCLE;
+
+	do_load16:
+		d_top[0] = read_be((unsigned char *)d_top[0], 2);
+		CYCLE;
+
+	do_load32:
+		d_top[0] = read_be((unsigned char *)d_top[0], 4);
+		CYCLE;
+
+	do_load64:
+		d_top[0] = read_be((unsigned char *)d_top[0], 8);
+		CYCLE;
+	
+	do_store8:
+		write_be((unsigned char *)d_top[-1], 1, d_top[0]);
+		d_top--;
+		CYCLE;
+
+	do_store16:
+		write_be((unsigned char *)d_top[-1], 2, d_top[0]);
+		d_top--;
+		CYCLE;
+
+	do_store32:
+		write_be((unsigned char *)d_top[-1], 4, d_top[0]);
+		d_top--;
+		CYCLE;
+
+	do_store64:
+		write_be((unsigned char *)d_top[-1], 8, d_top[0]);
+		d_top--;
+		CYCLE;
+
+	do_sex8:
+		d_top[0] = ((s_data_t)(d_top[0]) << 56) >> 56;
+		CYCLE;
+
+	do_sex16:
+		d_top[0] = ((s_data_t)(d_top[0]) << 48) >> 48;
+		CYCLE;
+
+	do_sex32:
+		d_top[0] = ((s_data_t)(d_top[0]) << 32) >> 32;
 		CYCLE;
 
 finish:

@@ -1,54 +1,60 @@
 #ifndef OPCODES_H
 #define OPCODES_H
 
+#define OPCODES \
+	X(NOOP) \
+	X(DBG) \
+	X(HALT) \
+	X(RET) \
+	X(CALLIND) /* 0x04 */ \
+	X(CALL)    /* 0x05 */ \
+	X(CALLREL) /* 0x06) NB: CALL + 0x1 must be CALLREL */ \
+	X(GOTOIND) /* 0x07 */ \
+	X(GOTO)    /* 0x08 */ \
+	X(GOTOREL) /* 0x09)  NB: GOTO + 0x1 must be GOTOREL */ \
+	X(BRANCHZ) /* 0x0a */ \
+	X(BRANCHNZ) \
+	X(BRANCHH) \
+	X(BRANCHNH) \
+	X(WHERE) \
+	X(PUSH8) \
+	X(PUSH16) \
+	X(PUSH32) /* 0x11 */ \
+	X(PUSH64) /* 0x12 */ \
+	X(FOREIGN) \
+	X(POP) \
+	X(ROT) \
+	X(SWAP) \
+	X(COPY) \
+	X(SAVE) \
+	X(ADD) \
+	X(SUB) \
+	X(MUL) \
+	X(DIV) \
+	X(REM) \
+	X(SHL) \
+	X(SHR) \
+	X(SHRA) \
+	X(AND) \
+	X(OR) \
+	X(NOT) \
+	X(XOR) \
+	X(LOAD8) \
+	X(LOAD16) \
+	X(LOAD32) \
+	X(LOAD64) \
+	X(STORE8) \
+	X(STORE16) \
+	X(STORE32) \
+	X(STORE64) \
+	X(SEX8) \
+	X(SEX16) \
+	X(SEX32)
+
+#define X(op) OP_ ## op, 
 typedef enum {
-	OP_ERR = 0,
-	OP_HALT,
-	OP_CALL,
-	OP_CALLIND,
-	OP_RET,
-	OP_WHERE,
-	OP_GOTO,
-	OP_GOTOIND,
-	OP_GOTOREL,
-	OP_BRANCHZ,
-	OP_BRANCHNZ,
-	OP_BRANCHH,
-	OP_BRANCHNH,
-	OP_PUSH8,
-	OP_PUSH16,
-	OP_PUSH32,
-	OP_PUSH64,
-	OP_POP,
-	OP_ROT,
-	OP_SWAP,
-	OP_COPY,
-	OP_SAVE,
-	OP_ADD,
-	OP_SUB,
-	OP_MUL,
-	OP_DIV,
-	OP_REM,
-	OP_SHL,
-	OP_SHR,
-	OP_SHRA,
-	OP_AND,
-	OP_OR,
-	OP_NOT,
-	OP_XOR,
-	OP_LOAD8,
-	OP_LOAD16,
-	OP_LOAD32,
-	OP_LOAD64,
-	OP_STORE8,
-	OP_STORE16,
-	OP_STORE32,
-	OP_STORE64,
-	OP_SEX8,
-	OP_SEX16,
-	OP_SEX32,
-	OP_FOREIGN,
-	OP_FOREIGNIND,
+	OPCODES
 } opcode_t;
+#undef X
 
 #endif

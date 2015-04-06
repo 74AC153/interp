@@ -11,22 +11,28 @@
 #endif
 
 data_t data_stack[DATA_STACK_DEPTH];
-size_t call_stack[CALL_STACK_DEPTH];
+pc_t call_stack[CALL_STACK_DEPTH];
 extern instr_t program[];
 
-int main(int argc, char *argv[])
+int main(void)
 {
-	size_t i, j;
+	size_t i;
 	bool status;
-	interp_state_t interp_state;
+	interp_state_t interp_state = {
+		.pc = 0,
+		.d_top = data_stack,
+		.c_top = call_stack
+	};
 	data_t *ds_ptr;
 
-	status = interpret(program, 0, data_stack, call_stack, NULL, &interp_state);
+	status = interpret(program, NULL, &interp_state);
+	if(status)
+		printf("abnormal termination\n");
 
 	printf("data stack:\n");
-	for(ds_ptr = interp_state.ds_top; ds_ptr >= data_stack; ds_ptr--) {
+	for(i = 0, ds_ptr = interp_state.d_top; ds_ptr >= data_stack; ds_ptr--, i++) {
 		printf("%lu: 0x%llx %llu %lld\n",
-	           i,
+		       i,
 		       (unsigned long long) *ds_ptr,
 		       (unsigned long long) *ds_ptr,
 		       (signed long long) *ds_ptr);
