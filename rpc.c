@@ -101,7 +101,7 @@ unsigned tokenize_FILE(FILE *instream, struct clist *tokens)
 		}
 
 		// builtin?
-		if(strcmp(cursor, "ret") == 0) {
+		if(strcmp(cursor, "RET") == 0) {
 			n->type = TOK_BUILTIN_RET;
 			goto next;
 		}
