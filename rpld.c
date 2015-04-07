@@ -27,13 +27,19 @@ int main(int argc, char *argv[])
 	struct clist comp_units;
 	clist_init(&comp_units);
 	char *outfile = "out.rpx";
+	_Bool final_link = 0;
 
-	// usage: rpl -o <outfile> <infile>
+	// usage: rpl [-x] [-o <outfile>] <infiles...>
 	int opt;
-	while((opt = getopt(argc, argv, "o:")) != -1) {
+	while((opt = getopt(argc, argv, "o:x")) != -1) {
 		switch(opt) {
 		case 'o': 
 			outfile = optarg;
+			break;
+		case 'x':
+			// this option enables the assumption that this will be the final
+			// link operation and absolute jump targets can now be resolved.
+			final_link = 1;
 			break;
 		default:
 			{
@@ -151,22 +157,31 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	if(final_link) {
+		while(! clist_is_empty(&abs_patch_addrs)) {
+			struct clnode *i = clnode_remove(clist_first(&abs_patch_addrs));
+			struct name_addr_node *patch_dst = (struct name_addr_node *)i;
+	
+			struct name_addr_node *patch_src =
+				name_addr_node_find(&out_u.exported, patch_dst->name);
+	
+			if(! patch_src) { // external dep
+				fprintf(stderr, "error: unresolved absolute link target: %s\n", 
+				        patch_dst->name);
+			} else {
+				jump_t jump = patch_src->addr;
+				jump = htobe32(jump);
+				memcpy(out_u.text + patch_dst->addr, &jump, sizeof(jump));
+	
+				free(i);
+			}
+		}
+	} else {
+		while(! clist_is_empty(&abs_patch_addrs)) {
+			struct clnode *i = clnode_remove(clist_first(&abs_patch_addrs));
+			struct name_addr_node *patch_dst = (struct name_addr_node *)i;
 
-	while(! clist_is_empty(&abs_patch_addrs)) {
-		struct clnode *i = clnode_remove(clist_first(&abs_patch_addrs));
-		struct name_addr_node *patch_dst = (struct name_addr_node *)i;
-
-		struct name_addr_node *patch_src =
-			name_addr_node_find(&out_u.exported, patch_dst->name);
-
-		if(! patch_src) { // external dep
 			clist_queue(&out_u.abs_deps, &patch_dst->hdr);
-		} else {
-			jump_t jump = patch_src->addr;
-			jump = htobe32(jump);
-			memcpy(out_u.text + patch_dst->addr, &jump, sizeof(jump));
-
-			free(i);
 		}
 	}
 
