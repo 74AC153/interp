@@ -49,7 +49,6 @@ int interpret(
 		&&do_and, &&do_or, &&do_not, &&do_xor,
 		&&do_load8, &&do_load16, &&do_load32, &&do_load64,
 		&&do_store8, &&do_store16, &&do_store32, &&do_store64,
-		&&do_sex8, &&do_sex16, &&do_sex32,
 	};
 #if defined(FASTER)
 	#define CYCLE goto *dispatch[prog[pc++]]
@@ -251,51 +250,41 @@ int interpret(
 		CYCLE;
 
 	do_load8:
-		d_top[0] = read_be((unsigned char *)d_top[0], 1);
+		// addr -> addr val    val = mem[addr]
+		++d_top;
+		d_top[0] = read_be(prog + d_top[-1], 1);
 		CYCLE;
 
 	do_load16:
-		d_top[0] = read_be((unsigned char *)d_top[0], 2);
+		++d_top;
+		d_top[0] = read_be(prog + d_top[-1], 2);
 		CYCLE;
 
 	do_load32:
-		d_top[0] = read_be((unsigned char *)d_top[0], 4);
+		++d_top;
+		d_top[0] = read_be(prog + d_top[-1], 4);
 		CYCLE;
 
 	do_load64:
-		d_top[0] = read_be((unsigned char *)d_top[0], 8);
+		++d_top;
+		d_top[0] = read_be(prog + d_top[-1], 8);
 		CYCLE;
 	
 	do_store8:
-		write_be((unsigned char *)d_top[-1], 1, d_top[0]);
-		d_top--;
+		// addr val -> addr val    mem[addr] = val
+		write_be(prog + d_top[-1], 1, d_top[0]);
 		CYCLE;
 
 	do_store16:
-		write_be((unsigned char *)d_top[-1], 2, d_top[0]);
-		d_top--;
+		write_be(prog + d_top[-1], 2, d_top[0]);
 		CYCLE;
 
 	do_store32:
-		write_be((unsigned char *)d_top[-1], 4, d_top[0]);
-		d_top--;
+		write_be(prog + d_top[-1], 4, d_top[0]);
 		CYCLE;
 
 	do_store64:
-		write_be((unsigned char *)d_top[-1], 8, d_top[0]);
-		d_top--;
-		CYCLE;
-
-	do_sex8:
-		d_top[0] = ((s_data_t)(d_top[0]) << 56) >> 56;
-		CYCLE;
-
-	do_sex16:
-		d_top[0] = ((s_data_t)(d_top[0]) << 48) >> 48;
-		CYCLE;
-
-	do_sex32:
-		d_top[0] = ((s_data_t)(d_top[0]) << 32) >> 32;
+		write_be(prog + d_top[-1], 8, d_top[0]);
 		CYCLE;
 
 finish:

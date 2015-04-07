@@ -46,10 +46,7 @@
 	X(STORE8) \
 	X(STORE16) \
 	X(STORE32) \
-	X(STORE64) \
-	X(SEX8) \
-	X(SEX16) \
-	X(SEX32)
+	X(STORE64)
 
 #define X(op) OP_ ## op, 
 typedef enum {
