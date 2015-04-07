@@ -22,8 +22,8 @@ struct toknode {
 	struct clnode hdr;
 	enum {
 		TOK_LABEL,
-		TOK_LITERAL_INT,
-		TOK_BUILTIN_RET,
+		TOK_LITERAL_UINT,
+		TOK_LITERAL_SINT,
 		TOK_GOTO,
 		TOK_FUNCALL,
 		TOK_FOREIGN,
@@ -32,7 +32,7 @@ struct toknode {
 	_Bool is_cond;
 	_Bool is_export;
 	char name[TOKEN_MAX_LEN];
-	int64_t lit_val;
+	uint64_t lit_val;
 };
 
 struct toknode *toknode_init(void *p)
@@ -92,18 +92,27 @@ unsigned tokenize_FILE(FILE *instream, struct clist *tokens)
 		// literal?
 		{
 			char *endp;
-			int64_t val = strtoll(buf, &endp, 0);
-			if(*endp == 0) {
-				n->type = TOK_LITERAL_INT;
-				n->lit_val = val;
-				goto next;
+			if(buf[0] == '\'') {
+				n->type = TOK_LITERAL_UINT;
+				// TODO: escapes, UTF8 chars
+				n->lit_val = buf[1];
+			} else if(buf[0] == '+' || buf[0] == '-') {
+				//signed
+				int64_t val = strtoll(buf, &endp, 0);
+				if(*endp == 0) {
+					n->type = TOK_LITERAL_SINT;
+					n->lit_val = val;
+					goto next;
+				}
+			} else {
+				//unsigned
+				uint64_t val = strtoull(buf, &endp, 0);
+				if(*endp == 0) {
+					n->type = TOK_LITERAL_UINT;
+					n->lit_val = val;
+					goto next;
+				}
 			}
-		}
-
-		// builtin?
-		if(strcmp(cursor, "RET") == 0) {
-			n->type = TOK_BUILTIN_RET;
-			goto next;
 		}
 
 		// goto / funcall
@@ -133,12 +142,12 @@ void print_toknode(struct toknode *tn)
 		printf("label   %s%s", tn->name,
 		       tn->is_export ? " (export)" : "");
 		break;
-	case TOK_LITERAL_INT:
+	case TOK_LITERAL_SINT:
 		printf("literal %lld%s", (long long) tn->lit_val,
 		       tn->is_cond ? " (conditional)" : "");
 		break;
-	case TOK_BUILTIN_RET:
-		printf("builtin re %s",
+	case TOK_LITERAL_UINT:
+		printf("literal %llx%s", (unsigned long long) tn->lit_val,
 		       tn->is_cond ? " (conditional)" : "");
 		break;
 	case TOK_GOTO:
@@ -237,13 +246,14 @@ usage:
 				fprintf(outstream, ".label %s\n", tn->name);
 			break;
 
-		case TOK_LITERAL_INT:
+		case TOK_LITERAL_SINT:
 			fprintf(outstream, "\t.mnemonic push64 .data_s8 %lld\n",
 			        (long long) tn->lit_val);
 			break;
 
-		case TOK_BUILTIN_RET:
-			fprintf(outstream, "\t.mnemonic ret\n");
+		case TOK_LITERAL_UINT:
+			fprintf(outstream, "\t.mnemonic push64 .data_u8 0x%llx\n",
+			        (unsigned long long) tn->lit_val);
 			break;
 
 		case TOK_GOTO:
