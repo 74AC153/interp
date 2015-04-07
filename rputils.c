@@ -36,8 +36,20 @@ start:
 
 	ungetc(ch, instream);
 
+
 	// read token up until whitespace or comment
 	while((ch = fgetc(instream)) != EOF) {
+		if(ch == '\\') {
+			ch = fgetc(instream);
+			if(ch == EOF) {
+				*cursor++ = '\\';
+				break;
+			} else {
+				*cursor++ = ch;
+			}
+			goto next;
+		}
+
 		if(isspace(ch))
 			break;
 
@@ -46,6 +58,7 @@ start:
 
 		*cursor++ = ch;
 
+next:
 		if(cursor - buf == buflen - 1)
 			break;
 	}
