@@ -268,5 +268,5 @@ int main(int argc, char *argv[])
 	if(interpret(u->text, builtin_funcs, &state))
 		abort();
 
-	return d_stack[0];
+	return state.d_top[0];
 }
